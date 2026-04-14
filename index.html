@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTTP Security Header Checker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+      color: #63b3ed;
+    }
+
+    .subtitle {
+      color: #718096;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 1rem;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #63b3ed;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      background: #3182ce;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    button:hover { background: #2b6cb0; }
+    button:disabled { background: #2d3748; cursor: not-allowed; }
+
+    #results { display: none; }
+
+    .grade-box {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .grade {
+      font-size: 4rem;
+      font-weight: bold;
+    }
+
+    .grade.A { color: #68d391; }
+    .grade.B { color: #90cdf4; }
+    .grade.C { color: #faf089; }
+    .grade.D { color: #fc8181; }
+    .grade.F { color: #fc3b3b; }
+
+    .header-card {
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .status-icon {
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .header-name {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .header-value {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #90cdf4;
+      margin-bottom: 0.25rem;
+      word-break: break-all;
+    }
+
+    .header-desc {
+      font-size: 0.85rem;
+      color: #718096;
+    }
+
+    .present { border-left: 3px solid #68d391; }
+    .missing  { border-left: 3px solid #fc8181; }
+    .warning  { border-left: 3px solid #faf089; }
+
+    #error-msg {
+      background: #2d1515;
+      border: 1px solid #fc8181;
+      border-radius: 6px;
+      padding: 1rem;
+      color: #fc8181;
+      display: none;
+      margin-bottom: 1rem;
+    }
+
+    .loading {
+      text-align: center;
+      color: #718096;
+      padding: 2rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>HTTP Security Header Checker</h1>
+  <p class="subtitle">Sprawdź, czy strona internetowa używa poprawnych nagłówków bezpieczeństwa.</p>
+
+    <p style="margin-bottom: 0.5rem; color: #718096; font-size: 0.85rem;">
+    Jak pobrać nagłówki: otwórz DevTools (F12) → zakładka Network → odśwież stronę → 
+    kliknij pierwsze żądanie → Response Headers → skopiuj wszystko i wklej poniżej.
+    </p>
+    <textarea
+    id="url-input"
+    placeholder="Wklej tutaj nagłówki HTTP, np:&#10;strict-transport-security: max-age=31536000&#10;content-security-policy: default-src 'self'&#10;x-frame-options: DENY"
+    style="width:100%; height:140px; padding:0.75rem; background:#1a202c;
+            border:1px solid #2d3748; border-radius:6px; color:#e2e8f0;
+            font-family:monospace; font-size:0.85rem; resize:vertical;
+            margin-bottom:0.75rem;"
+    ></textarea>
+    <button onclick="checkHeaders()" style="width:100%">Analizuj nagłówki</button>
+
+  <div id="error-msg"></div>
+  <div class="loading" id="loading">Pobieranie nagłówków...</div>
+
+  <div id="results">
+    <div class="grade-box">
+      <div>Ocena bezpieczeństwa</div>
+      <div class="grade" id="grade-display">—</div>
+    </div>
+    <div id="headers-list"></div>
+  </div>
+
+    <script>
+        const SECURITY_HEADERS = [
+        {
+            name: 'strict-transport-security',
+            label: 'Strict-Transport-Security (HSTS)',
+            description: 'Wymusza połączenie przez HTTPS. Bez tego przeglądarka może połączyć się przez HTTP.',
+            critical: true
+        },
+        {
+            name: 'content-security-policy',
+            label: 'Content-Security-Policy (CSP)',
+            description: 'Określa skąd mogą ładować się zasoby. Chroni przed atakami XSS.',
+            critical: true
+        },
+        {
+            name: 'x-frame-options',
+            label: 'X-Frame-Options',
+            description: 'Zapobiega osadzeniu strony w <iframe>. Chroni przed atakami clickjacking.',
+            critical: true
+        },
+        {
+            name: 'x-content-type-options',
+            label: 'X-Content-Type-Options',
+            description: 'Zapobiega "odgadywaniu" typu pliku przez przeglądarkę. Chroni przed MIME sniffing.',
+            critical: false
+        },
+        {
+            name: 'referrer-policy',
+            label: 'Referrer-Policy',
+            description: 'Kontroluje jakie informacje są wysyłane w nagłówku Referer. Chroni prywatność użytkowników.',
+            critical: false
+        },
+        {
+            name: 'permissions-policy',
+            label: 'Permissions-Policy',
+            description: 'Kontroluje dostęp do API przeglądarki (kamera, mikrofon, GPS). Ogranicza powierzchnię ataku.',
+            critical: false
+        }
+        ];
+
+        async function checkHeaders() {
+            const input = document.getElementById('url-input').value.trim();
+            if (!input) {
+                showError('Wklej nagłówki HTTP.');
+                return;
+            }
+
+            document.getElementById('error-msg').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+
+            // Parsujemy wklejony tekst nagłówków
+            // Każda linia to jeden nagłówek w formacie "nazwa: wartość"
+            const headers = {};
+            const lines = input.split('\n');
+
+            lines.forEach(line => {
+                const colonIndex = line.indexOf(':');
+                if (colonIndex === -1) return; // linia bez dwukropka — pomijamy
+
+                const key = line.substring(0, colonIndex).trim().toLowerCase();
+                const value = line.substring(colonIndex + 1).trim();
+
+                if (key && value) {
+                headers[key] = value;
+                }
+            });
+
+            if (Object.keys(headers).length === 0) {
+                showError('Nie rozpoznano żadnych nagłówków. Sprawdź format.');
+                return;
+            }
+
+            displayResults(headers);
+        }
+
+        function displayResults(headers, url) {
+        const list = document.getElementById('headers-list');
+        list.innerHTML = '';
+
+        let score = 0;
+        let maxScore = 0;
+
+        SECURITY_HEADERS.forEach(h => {
+            const value = headers[h.name];
+            const present = !!value;
+            const points = h.critical ? 2 : 1;
+            maxScore += points;
+            if (present) score += points;
+
+            // Tworzymy kartę dla każdego nagłówka
+            const card = document.createElement('div');
+            card.className = 'header-card ' + (present ? 'present' : 'missing');
+
+            card.innerHTML = `
+            <div class="status-icon">${present ? '✅' : '❌'}</div>
+            <div>
+                <div class="header-name">${h.label}</div>
+                ${present
+                ? `<div class="header-value">${value}</div>`
+                : `<div class="header-value" style="color:#fc8181">Brak nagłówka</div>`
+                }
+                <div class="header-desc">${h.description}</div>
+            </div>
+            `;
+
+            list.appendChild(card);
+        });
+
+        // Obliczamy ocenę na podstawie punktów
+        const percent = score / maxScore;
+        let grade = 'F';
+        if (percent >= 0.9) grade = 'A';
+        else if (percent >= 0.7) grade = 'B';
+        else if (percent >= 0.5) grade = 'C';
+        else if (percent >= 0.3) grade = 'D';
+
+        const gradeEl = document.getElementById('grade-display');
+        gradeEl.textContent = grade;
+        gradeEl.className = 'grade ' + grade;
+
+        document.getElementById('results').style.display = 'block';
+        }
+
+        function showError(msg) {
+        const el = document.getElementById('error-msg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        }
+    </script>
+
+</body>
+</html>

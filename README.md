@@ -6,7 +6,7 @@ podstawowe zabezpieczenia rekomendowane przez OWASP.
 
 ## Demo
 
-[link do GitHub Pages — instrukcja poniżej](
+[Demo na GitHub Pages](
 https://vrath.github.io/http-header-checker/)
 
 ## Co sprawdza

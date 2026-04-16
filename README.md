@@ -23,5 +23,6 @@ HTML - CSS - JavaScript
 
 ## Jak uruchomić lokalnie
 
-Wystarczy otworzyć index.html w przeglądarce. 
+Wystarczy otworzyć index.html w przeglądarce:
+https://vrath.github.io/http-header-checker/
 Nie wymaga instalacji ani backendu.

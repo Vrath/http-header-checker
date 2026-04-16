@@ -6,7 +6,8 @@ podstawowe zabezpieczenia rekomendowane przez OWASP.
 
 ## Demo
 
-[link do GitHub Pages — instrukcja poniżej]
+[link do GitHub Pages — instrukcja poniżej](
+https://vrath.github.io/http-header-checker/)
 
 ## Co sprawdza
 
@@ -23,8 +24,5 @@ HTML, CSS, JavaScript
 
 ## Jak uruchomić lokalnie
 
-Wystarczy otworzyć index.html w przeglądarce:
-
-https://vrath.github.io/http-header-checker/
-
+Wystarczy otworzyć index.html w przeglądarce.
 Nie wymaga instalacji ani backendu.
